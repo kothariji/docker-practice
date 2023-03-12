@@ -30,13 +30,14 @@ pgClient.on("connect", (client) => {
 const redis = require("redis");
 
 const redisClient = redis.createClient({
-  host: keys.redisHost,
-  port: keys.redisPort,
+  // host: keys.redisHost,
+  // port: keys.redisPort,
+  url: "redis://redis:6379",
   retry_strategy: () => 1000,
 });
-
+redisClient.connect();
 const redisPublisher = redisClient.duplicate();
-
+redisPublisher.connect();
 // express routes
 app.get("/", (req, res) => {
   res.send("Server is running, Yayyy!");
@@ -48,9 +49,8 @@ app.get("/values/all", async (req, res) => {
 });
 
 app.get("/values/current", async (req, res) => {
-  redisClient.hGetAll("values", (err, values) => {
-    res.send(values);
-  });
+  const values = await redisClient.hGetAll("values");
+  res.send(values);
 });
 
 app.post("/values", async (req, res) => {
@@ -58,9 +58,8 @@ app.post("/values", async (req, res) => {
   if (parseInt(index) > 40) {
     res.status(422).send("Index too high");
   }
-
-  redisClient.hSet("values", index, "Nothing Yet!");
-  redisPublisher.publish("insert", index);
+  await redisClient.hSet("values", index, "Nothing Yet!");
+  await redisPublisher.publish("insert", `${index}`);
   pgClient.query("INSERT INTO values(number) VALUES($1)", [index]);
   res.send({ working: true });
 });
